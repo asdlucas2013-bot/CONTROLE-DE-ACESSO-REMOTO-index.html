@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Controle de Parceiros</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6fa;color:#172033}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0b3b82,#1672c9)}
+.card{background:white;border-radius:18px;padding:32px;width:min(420px,92%);box-shadow:0 15px 45px #0004;text-align:center}
+h1{margin:0 0 8px}.muted{color:#667085;margin-bottom:24px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #ccd3dd;border-radius:9px;margin:6px 0 12px;font-size:15px}
+button{border:0;border-radius:9px;padding:11px 16px;cursor:pointer;font-weight:bold}
+.primary{background:#1267b1;color:#fff}.danger{background:#d92d20;color:#fff}.secondary{background:#e8eef5;color:#172033}
+.hidden{display:none}.app{max-width:1200px;margin:auto;padding:22px}
+header{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat{background:#fff;padding:18px;border-radius:13px;box-shadow:0 2px 10px #0000000d}.stat b{font-size:25px;display:block;margin-top:5px}
+.panel{background:#fff;padding:20px;border-radius:14px;margin-bottom:20px;box-shadow:0 2px 10px #0000000d}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+table{width:100%;border-collapse:collapse}th,td{padding:12px 8px;border-bottom:1px solid #e7eaf0;text-align:left;vertical-align:top}th{background:#f7f9fc}
+.badge{padding:5px 9px;border-radius:20px;font-size:12px;font-weight:bold}.pending{background:#fff1c7;color:#8a5b00}.done{background:#d9f7e5;color:#087443}
+.actions button{margin:2px;padding:7px 9px}
+@media(max-width:800px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}table{font-size:13px}header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div id="login" class="login">
+  <div class="card">
+    <h1>🔐 Controle de Parceiros</h1>
+    <div class="muted">Digite sua senha para acessar</div>
+    <input id="senha" type="password" placeholder="Senha" autocomplete="current-password">
+    <button class="primary" style="width:100%" onclick="entrar()">Entrar</button>
+    <p id="erro" style="color:#d92d20"></p>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<div class="app">
+<header>
+  <div><h1>📋 Controle de Parceiros</h1><div class="muted">Histórico de parceiros e serviços realizados</div></div>
+  <button class="danger" onclick="sair()">Sair</button>
+</header>
+
+<div class="stats">
+ <div class="stat">Total de registros<b id="total">0</b></div>
+ <div class="stat">Parceiros<b id="parceiros">0</b></div>
+ <div class="stat">Pendentes<b id="pendentes">0</b></div>
+ <div class="stat">Concluídos<b id="concluidos">0</b></div>
+</div>
+
+<div class="panel">
+<h2 id="tituloForm">➕ Novo registro</h2>
+<div class="grid">
+ <div><label>Data</label><input id="data" type="date"></div>
+ <div><label>Nome do parceiro</label><input id="nome" placeholder="Nome do parceiro"></div>
+</div>
+<label>Serviço realizado</label><input id="servico" placeholder="Ex.: Renovação de certificado digital">
+<label>Observação</label><textarea id="obs" rows="2" placeholder="Observações"></textarea>
+<label>📎 Anexar foto ou PDF</label><input id="anexo" type="file" accept="image/*,.pdf"><div id="anexoAtual" style="font-size:13px;color:#667085;margin:-4px 0 12px"></div>
+<div class="grid">
+ <div><label>Status</label><select id="status"><option>Pendente</option><option>Concluído</option></select></div>
+ <div style="display:flex;align-items:end;gap:8px">
+   <button class="primary" onclick="salvar()">Salvar registro</button>
+   <button class="secondary" onclick="limpar()">Limpar</button>
+ </div>
+</div>
+</div>
+
+<div class="panel">
+<h2>🔎 Pesquisar histórico</h2>
+<div class="grid">
+ <input id="busca" placeholder="Pesquisar parceiro ou serviço..." oninput="render()">
+ <input id="filtroData" type="date" onchange="render()">
+</div>
+<button class="secondary" onclick="limparFiltros()">Limpar filtros</button>
+<button class="primary" onclick="exportar()">📥 Exportar CSV</button>
+</div>
+
+<div class="panel">
+<h2>Histórico</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>Data</th><th>Parceiro</th><th>Serviço</th><th>Observação</th><th>Anexo</th><th>Status</th><th>Ações</th></tr></thead>
+<tbody id="lista"></tbody></table>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+const SENHA="23082012";
+let registros=JSON.parse(localStorage.getItem("controleParceiros")||"[]");
+let editando=null;
+
+function entrar(){
+ if(document.getElementById("senha").value===SENHA){
+   sessionStorage.setItem("acesso","1");
+   document.getElementById("login").classList.add("hidden");
+   document.getElementById("app").classList.remove("hidden");
+   document.getElementById("data").value=new Date().toISOString().slice(0,10);
+   render();
+ }else document.getElementById("erro").textContent="Senha incorreta.";
+}
+document.getElementById("senha").addEventListener("keydown",e=>{if(e.key==="Enter")entrar()});
+if(sessionStorage.getItem("acesso")==="1"){document.getElementById("login").classList.add("hidden");document.getElementById("app").classList.remove("hidden");document.getElementById("data").value=new Date().toISOString().slice(0,10);render()}
+
+function salvar(){
+ const nome=document.getElementById("nome").value.trim(), servico=document.getElementById("servico").value.trim();
+ if(!nome||!servico){alert("Preencha o nome do parceiro e o serviço.");return}
+ const file=document.getElementById("anexo").files[0];
+ const salvarRegistro=(anexo)=>{const anterior=editando?registros.find(x=>x.id===editando):null; const item={id:editando||Date.now(),data:document.getElementById("data").value,nome,servico,obs:document.getElementById("obs").value.trim(),status:document.getElementById("status").value,anexo:anexo||anterior?.anexo||null}; if(editando) registros=registros.map(x=>x.id===editando?item:x); else registros.push(item); localStorage.setItem("controleParceiros",JSON.stringify(registros));limpar();render();};
+ if(file){const reader=new FileReader();reader.onload=()=>salvarRegistro({nome:file.name,tipo:file.type,dados:reader.result});reader.readAsDataURL(file);}else salvarRegistro(null);
+}
+function editar(id){
+ const x=registros.find(r=>r.id===id); if(!x)return;
+ editando=id; document.getElementById("tituloForm").textContent="✏️ Editar registro";
+ ["data","nome","servico","obs","status"].forEach(k=>document.getElementById(k).value=x[k]);
+ document.getElementById("anexo").value=""; document.getElementById("anexoAtual").innerHTML=x.anexo?`📎 Arquivo atual: <a href="${x.anexo.dados}" target="_blank">${esc(x.anexo.nome)}</a> <a href="${x.anexo.dados}" download="${esc(x.anexo.nome)}" style="margin-left:6px;text-decoration:none" title="Baixar arquivo">⬇️ Baixar</a>`:"";
+ window.scrollTo({top:0,behavior:"smooth"});
+}
+function excluir(id){
+ if(confirm("Excluir este registro?")){registros=registros.filter(x=>x.id!==id);localStorage.setItem("controleParceiros",JSON.stringify(registros));render()}
+}
+function limpar(){
+ editando=null;document.getElementById("tituloForm").textContent="➕ Novo registro";
+ document.getElementById("data").value=new Date().toISOString().slice(0,10);
+ ["nome","servico","obs"].forEach(k=>document.getElementById(k).value="");
+ document.getElementById("status").value="Pendente";
+}
+function render(){
+ const busca=document.getElementById("busca").value.toLowerCase(), fd=document.getElementById("filtroData").value;
+ const arr=registros.filter(x=>(!busca||(x.nome+" "+x.servico+" "+x.obs).toLowerCase().includes(busca))&&(!fd||x.data===fd)).sort((a,b)=>b.data.localeCompare(a.data));
+ document.getElementById("lista").innerHTML=arr.map(x=>`<tr><td>${formatarData(x.data)}</td><td><b>${esc(x.nome)}</b></td><td>${esc(x.servico)}</td><td>${esc(x.obs||"-")}</td><td>${x.anexo?`<a href="${x.anexo.dados}" target="_blank">📎 ${esc(x.anexo.nome)}</a> <a href="${x.anexo.dados}" download="${esc(x.anexo.nome)}" style="margin-left:6px;text-decoration:none" title="Baixar arquivo">⬇️</a>`:"-"}</td><td><span class="badge ${x.status==="Concluído"?"done":"pending"}">${x.status}</span></td><td class="actions"><button class="secondary" onclick="editar(${x.id})">✏️</button><button class="danger" onclick="excluir(${x.id})">🗑️</button></td></tr>`).join("")||'<tr><td colspan="7" style="text-align:center">Nenhum registro encontrado.</td></tr>';
+ document.getElementById("total").textContent=registros.length;
+ document.getElementById("parceiros").textContent=new Set(registros.map(x=>x.nome.toLowerCase())).size;
+ document.getElementById("pendentes").textContent=registros.filter(x=>x.status==="Pendente").length;
+ document.getElementById("concluidos").textContent=registros.filter(x=>x.status==="Concluído").length;
+}
+function formatarData(d){if(!d)return"-";let [a,m,di]=d.split("-");return `${di}/${m}/${a}`}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function limparFiltros(){document.getElementById("busca").value="";document.getElementById("filtroData").value="";render()}
+function exportar(){
+ let csv="Data;Parceiro;Serviço;Observação;Status\n"+registros.map(x=>[formatarData(x.data),x.nome,x.servico,x.obs,x.status].map(v=>`"${String(v||"").replaceAll('"','""')}"`).join(";")).join("\n");
+ let a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));a.download="historico_parceiros.csv";a.click();
+}
+function sair(){sessionStorage.removeItem("acesso");location.reload()}
+</script>
+</body>
+</html>
