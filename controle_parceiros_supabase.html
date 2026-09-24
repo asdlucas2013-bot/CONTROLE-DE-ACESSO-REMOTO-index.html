@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Parceiros - CCN</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f6fa;color:#172033}
+.container{max-width:1450px;margin:auto;padding:24px}
+.card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px #00000012;margin-bottom:22px}
+.hidden{display:none!important}
+h1{margin:0 0 8px;font-size:38px;color:#102c52}
+h2{margin:0 0 20px;color:#102c52}
+.subtitle{color:#667085;font-size:19px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}
+button{border:0;border-radius:9px;padding:11px 16px;cursor:pointer;font-weight:bold;font-size:15px}
+.primary{background:#1267b1;color:#fff}
+.secondary{background:#e8eef5;color:#172033}
+.danger{background:#e3312b;color:#fff}
+.success{background:#19a463;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.stat{background:#fff;padding:20px;border-radius:16px;box-shadow:0 2px 12px #00000012}
+.stat span{display:block;font-size:15px}.stat b{font-size:28px;display:block;margin-top:7px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{display:block;margin:8px 0 6px;font-weight:500}
+input,select,textarea{width:100%;padding:12px;border:1px solid #ccd3dd;border-radius:9px;font-size:15px;background:#fff}
+textarea{min-height:78px;resize:vertical}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:1000px}
+th,td{text-align:left;padding:13px 10px;border-bottom:1px solid #e4e8ee;vertical-align:middle}
+th{background:#f5f7fa}
+.badge{display:inline-block;padding:6px 10px;border-radius:20px;font-weight:bold;font-size:13px}
+.pending{background:#fff1c7;color:#8a6200}.done{background:#d8f5e4;color:#08753f}
+.iconbtn{padding:8px 10px}.small{font-size:13px;color:#667085}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0b3b82,#1672c9)}
+.login{width:min(440px,92vw);background:#fff;padding:32px;border-radius:18px;box-shadow:0 15px 45px #0004}
+.login h1{font-size:30px}
+.notice{padding:12px 14px;border-radius:10px;background:#eef5ff;color:#164a83;margin-bottom:16px}
+.error{background:#fff0f0;color:#a40000}
+.loading{text-align:center;padding:30px;color:#667085}
+a{color:#1267b1}
+@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+@media(max-width:600px){.container{padding:12px}.stats{grid-template-columns:1fr}.card{padding:16px}h1{font-size:30px}}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-wrap">
+  <div class="login">
+    <h1>📋 Controle de Parceiros</h1>
+    <p class="subtitle">CCN — acesso ao sistema compartilhado</p>
+    <div id="loginMsg" class="notice hidden"></div>
+    <label>E-mail</label>
+    <input id="email" type="email" placeholder="seu@email.com">
+    <label>Senha</label>
+    <input id="password" type="password" placeholder="Senha">
+    <div class="form-actions">
+      <button id="loginBtn" class="primary" onclick="login()">Entrar</button>
+    </div>
+    <p class="small">Os usuários precisam ser cadastrados no Supabase pelo administrador.</p>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="container">
+    <div class="top">
+      <div>
+        <h1>📋 Controle de Parceiros</h1>
+        <div class="subtitle">Histórico de parceiros e serviços realizados</div>
+      </div>
+      <button class="danger" onclick="logout()">Sair</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>Total de registros</span><b id="total">0</b></div>
+      <div class="stat"><span>Parceiros</span><b id="partners">0</b></div>
+      <div class="stat"><span>Pendentes</span><b id="pending">0</b></div>
+      <div class="stat"><span>Concluídos</span><b id="done">0</b></div>
+    </div>
+
+    <div class="card">
+      <h2 id="formTitle">➕ Novo registro</h2>
+      <input type="hidden" id="editId">
+      <div class="grid2">
+        <div><label>Data</label><input id="date" type="date"></div>
+        <div><label>Nome do parceiro</label><input id="partner" placeholder="Nome do parceiro"></div>
+      </div>
+      <label>Serviço realizado</label>
+      <input id="service" placeholder="Ex.: Renovação de certificado digital">
+      <label>Observação</label>
+      <textarea id="observation" placeholder="Observações"></textarea>
+      <label>📎 Anexar foto ou PDF</label>
+      <input id="file" type="file" accept="image/*,.pdf">
+      <div id="currentFile" class="small"></div>
+      <div class="grid2">
+        <div>
+          <label>Status</label>
+          <select id="status"><option value="Pendente">Pendente</option><option value="Concluído">Concluído</option></select>
+        </div>
+        <div class="form-actions" style="align-items:end">
+          <button class="primary" onclick="saveRecord()">Salvar registro</button>
+          <button class="secondary" onclick="clearForm()">Limpar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🔎 Pesquisar histórico</h2>
+      <div class="grid2">
+        <input id="search" placeholder="Pesquisar parceiro ou serviço..." oninput="render()">
+        <input id="filterDate" type="date" onchange="render()">
+      </div>
+      <div class="actions" style="margin-top:14px">
+        <button class="secondary" onclick="clearFilters()">Limpar filtros</button>
+        <button class="primary" onclick="exportCSV()">📥 Exportar CSV</button>
+        <button class="secondary" onclick="loadRecords()">↻ Atualizar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Histórico</h2>
+      <div id="loading" class="loading">Carregando...</div>
+      <div class="table-wrap">
+        <table id="table" class="hidden">
+          <thead><tr><th>Data</th><th>Parceiro</th><th>Serviço</th><th>Observação</th><th>Anexo</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="small hidden">Nenhum registro encontrado.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "sb_publishable_mQXsZ-CHHitwtuHXa_041Q_pgaBWzJz";
+const SUPABASE_KEY = "COLE_AQUI_A_PUBLISHABLE_KEY_DO_SEU_PROJETO";
+const BUCKET = "ccn-anexos";
+
+let sb = null;
+let records = [];
+
+function configured(){
+  return SUPABASE_URL.startsWith("https://") &&
+         !SUPABASE_URL.includes("COLE_AQUI") &&
+         !SUPABASE_KEY.includes("COLE_AQUI");
+}
+if(configured()) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function showLoginMsg(msg, error=false){
+  const el=document.getElementById("loginMsg");
+  el.textContent=msg; el.className="notice"+(error?" error":"");
+}
+function fmtDate(d){
+  if(!d) return "-";
+  const [y,m,day]=d.split("-");
+  return `${day}/${m}/${y}`;
+}
+function esc(v){
+  return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function initDate(){
+  const d=new Date();
+  const local=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  document.getElementById("date").value=local;
+}
+async function login(){
+  if(!configured()){showLoginMsg("Primeiro configure a URL e a Publishable Key do Supabase neste arquivo.",true);return;}
+  const email=document.getElementById("email").value.trim();
+  const password=document.getElementById("password").value;
+  if(!email||!password){showLoginMsg("Informe e-mail e senha.",true);return;}
+  document.getElementById("loginBtn").disabled=true;
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  document.getElementById("loginBtn").disabled=false;
+  if(error){showLoginMsg(error.message,true);return;}
+  showApp();
+}
+async function logout(){await sb.auth.signOut();document.getElementById("app").classList.add("hidden");document.getElementById("loginScreen").classList.remove("hidden");}
+function showApp(){
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  initDate(); loadRecords();
+}
+async function loadRecords(){
+  if(!sb)return;
+  document.getElementById("loading").classList.remove("hidden");
+  document.getElementById("table").classList.add("hidden");
+  const {data,error}=await sb.from("parceiros").select("*").order("data",{ascending:false}).order("created_at",{ascending:false});
+  document.getElementById("loading").classList.add("hidden");
+  if(error){alert("Erro ao carregar dados: "+error.message);return;}
+  records=data||[]; render();
+}
+function render(){
+  const q=document.getElementById("search").value.trim().toLowerCase();
+  const fd=document.getElementById("filterDate").value;
+  const filtered=records.filter(r=>{
+    const text=(r.parceiro+" "+r.servico+" "+(r.observacao||"")).toLowerCase();
+    return (!q||text.includes(q)) && (!fd||r.data===fd);
+  });
+  const unique=new Set(records.map(r=>(r.parceiro||"").trim().toLowerCase()).filter(Boolean));
+  document.getElementById("total").textContent=records.length;
+  document.getElementById("partners").textContent=unique.size;
+  document.getElementById("pending").textContent=records.filter(r=>r.status==="Pendente").length;
+  document.getElementById("done").textContent=records.filter(r=>r.status==="Concluído").length;
+
+  const tbody=document.getElementById("tbody");
+  tbody.innerHTML=filtered.map(r=>{
+    const badge=r.status==="Concluído"?"done":"pending";
+    return `<tr>
+      <td>${fmtDate(r.data)}</td>
+      <td><b>${esc(r.parceiro)}</b></td>
+      <td>${esc(r.servico)}</td>
+      <td>${esc(r.observacao||"-")}</td>
+      <td>${r.file_path?`<button class="secondary iconbtn" onclick="viewFile('${esc(r.file_path)}')">👁️ Ver</button>`:"-"}</td>
+      <td><span class="badge ${badge}">${esc(r.status)}</span></td>
+      <td><div class="actions">
+        <button class="secondary iconbtn" onclick="editRecord('${r.id}')">✏️</button>
+        <button class="danger iconbtn" onclick="deleteRecord('${r.id}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("empty").classList.toggle("hidden",filtered.length!==0);
+  document.getElementById("table").classList.toggle("hidden",filtered.length===0);
+}
+async function saveRecord(){
+  if(!sb){alert("Configure o Supabase primeiro.");return;}
+  const id=document.getElementById("editId").value;
+  const data=document.getElementById("date").value;
+  const parceiro=document.getElementById("partner").value.trim();
+  const servico=document.getElementById("service").value.trim();
+  const observacao=document.getElementById("observation").value.trim();
+  const status=document.getElementById("status").value;
+  const file=document.getElementById("file").files[0];
+  if(!data||!parceiro||!servico){alert("Preencha Data, Nome do parceiro e Serviço.");return;}
+
+  let file_path=document.getElementById("currentFile").dataset.path||null;
+  if(file){
+    if(file.size>15*1024*1024){alert("O arquivo deve ter no máximo 15 MB.");return;}
+    const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+    const path=`${crypto.randomUUID()}-${safe}`;
+    const {error:upErr}=await sb.storage.from(BUCKET).upload(path,file,{cacheControl:"3600",upsert:false});
+    if(upErr){alert("Erro ao enviar anexo: "+upErr.message);return;}
+    if(file_path) await sb.storage.from(BUCKET).remove([file_path]);
+    file_path=path;
+  }
+
+  const row={data,parceiro,servico,observacao,status,file_path};
+  let error;
+  if(id){
+    ({error}=await sb.from("parceiros").update(row).eq("id",id));
+  }else{
+    ({error}=await sb.from("parceiros").insert(row));
+  }
+  if(error){alert("Erro ao salvar: "+error.message);return;}
+  clearForm(); await loadRecords();
+}
+async function editRecord(id){
+  const r=records.find(x=>x.id===id); if(!r)return;
+  document.getElementById("editId").value=r.id;
+  document.getElementById("date").value=r.data||"";
+  document.getElementById("partner").value=r.parceiro||"";
+  document.getElementById("service").value=r.servico||"";
+  document.getElementById("observation").value=r.observacao||"";
+  document.getElementById("status").value=r.status||"Pendente";
+  const cf=document.getElementById("currentFile");
+  cf.textContent=r.file_path?"Anexo atual: "+r.file_path:"";
+  cf.dataset.path=r.file_path||"";
+  document.getElementById("formTitle").textContent="✏️ Editar registro";
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function deleteRecord(id){
+  if(!confirm("Deseja realmente excluir este registro?"))return;
+  const r=records.find(x=>x.id===id);
+  if(r?.file_path) await sb.storage.from(BUCKET).remove([r.file_path]);
+  const {error}=await sb.from("parceiros").delete().eq("id",id);
+  if(error){alert("Erro ao excluir: "+error.message);return;}
+  await loadRecords();
+}
+async function viewFile(path){
+  const {data,error}=await sb.storage.from(BUCKET).createSignedUrl(path,3600);
+  if(error){alert("Não foi possível abrir o anexo: "+error.message);return;}
+  window.open(data.signedUrl,"_blank","noopener");
+}
+function clearForm(){
+  document.getElementById("editId").value="";
+  document.getElementById("partner").value="";
+  document.getElementById("service").value="";
+  document.getElementById("observation").value="";
+  document.getElementById("file").value="";
+  document.getElementById("status").value="Pendente";
+  document.getElementById("currentFile").textContent="";
+  document.getElementById("currentFile").dataset.path="";
+  document.getElementById("formTitle").textContent="➕ Novo registro";
+  initDate();
+}
+function clearFilters(){document.getElementById("search").value="";document.getElementById("filterDate").value="";render();}
+function exportCSV(){
+  const q=document.getElementById("search").value.trim().toLowerCase();
+  const fd=document.getElementById("filterDate").value;
+  const rows=records.filter(r=>{
+    const text=(r.parceiro+" "+r.servico+" "+(r.observacao||"")).toLowerCase();
+    return (!q||text.includes(q))&&(!fd||r.data===fd);
+  });
+  const csv=[["Data","Parceiro","Serviço","Observação","Anexo","Status"],...rows.map(r=>[fmtDate(r.data),r.parceiro,r.servico,r.observacao||"",r.file_path||"",r.status])]
+    .map(row=>row.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(";")).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="historico_parceiros.csv";a.click();URL.revokeObjectURL(a.href);
+}
+
+(async function(){
+  if(!configured()){
+    showLoginMsg("A versão nova foi criada. Falta somente colocar a URL e a Publishable Key do seu projeto Supabase no arquivo.",true);
+    return;
+  }
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) showApp();
+})();
+</script>
+</body>
+</html>
